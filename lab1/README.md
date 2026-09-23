@@ -1,6 +1,6 @@
 # Labortory work №1
 
-## Project: SchemaPostol
+## Project: **SchemaPostol**
 
 ### Domain Overview
 - A web-based platform for [Minecraft](https://www.minecraft.net/en-us) players who like to build and want to share their creations for free in a format that is convenient for other palyers.
@@ -12,7 +12,6 @@
 **Schematics**:
    * While uploading, you must attach [.litematica](https://modrinth.com/mod/litematica) schematic files.
    * Optional attachment of full Minecraft world archives (`.zip`).
-   * Built-in layered 3D build instruction.
 **Services**:
    * User registration and profile management.
    * Authoring, editing, and deleting owned schematic publications.
