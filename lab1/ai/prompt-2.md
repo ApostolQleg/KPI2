@@ -1,4 +1,4 @@
-# Iteration 1: Initial ERD Generation
+# Iteration 2:
 
 ## Prompt
 > Read the spec.md file. Based on the described entities and acceptance criteria, generate ERD in Mermaid format and save it to the model/er-diagram.mmd file. Do not include junction tables that lack their own attributes. Use consistent identifier types. Then render this model to .png using convenient method.
