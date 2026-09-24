@@ -43,24 +43,24 @@
 2. **`User` -saves- `Schematic` ( 0..M : 0..N ):**
     * One user can save zero-to-many schematics ( 1 : 0..M )
     * One schamatic can be saved by zero-to-many users ( 1: 0..M )
-3. **`User` --- `Comment` ( 1 : 0..N ):**
+3. **`User` -writes- `Comment` ( 1 : 0..N ):**
     * One user can write zero-to-many comments ( 1 : 0..M )
     * One comment must have one and only author ( 1 : 1 )
-4. **`Schematic` --- `Comment` ( 1 : 0..M ):**
+4. **`Schematic` -has- `Comment` ( 1 : 0..M ):**
     * One schematic can have zero-to-many comments ( 1 : 0..M )
     * One comment must have one and only schematic ( 1 : 1 )
-5. **`Schematic` --- `Category` ( 0..M : 1 ):**
+5. **`Schematic` -classified by- `Category` ( 0..M : 1 ):**
     * One schematic must have one and only category ( 1 : 1 )
     * One category can have zero-to-many schematics ( 1 : 0..M )
-6. **`Schematic` --- `Tag` ( 0..M : 1..N ):**
+6. **`Schematic` -has- `Tag` ( 0..M : 1..N ):**
     * One schematic must have at least one tag ( 1 : 1..M )
     * One tag can have zero-to-many schematics ( 1 : 0..M )
-7. **`Schematic` --- `Version` ( 0..M : 1..N ):**
+7. **`Schematic` -has- `Version` ( 0..M : 1..N ):**
     * One schematic must have at least one version ( 1 : 1..M )
     * One version can have zero-to-many schematics ( 1 : 0..M )
 
 # Acceptance criteria
-1. **Artifacts:**
+1. **Artifacts (CRITICAL):**
    - Mermaid model entity relationships diagram, saved in file `model/er-diagram.mmd`.
    - Rendered visual diagram file saved in `model/er-diagram.png`.
 2. **Conceptual Model Constraints**:
