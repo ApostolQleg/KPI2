@@ -44,7 +44,8 @@ erDiagram
     User ||--o{ Schematic : creates
     User }o--o{ Schematic : saves
     User ||--o{ Comment : writes
-    Schematic ||--o{ Comment : contains
-    Category ||--o{ Schematic : classifies
-    Schematic }o--|{ Tag : tagged_with
-    Schematic }o--|{ Version : has_versions
+    Schematic ||--o{ Comment : has
+    Schematic }o--|| Category : "classified by"
+    Schematic }o--|{ Tag : has
+    Schematic }o--|{ Version : has
+
