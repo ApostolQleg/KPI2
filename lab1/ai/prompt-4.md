@@ -11,3 +11,10 @@
 - File `model/er-diagram.png` rendered from `model/er-diagram.mmd`.
 
 ## AI Output Audit
+- **Status**: Accepted.
+- **Generated Artifacts**:
+    - `model/er-diagram.mmd` (Commit `<64396cff7209a6d12f7a8c8b6c06b4a3b5e86f3b>`)
+    - `model/er-diagram.png` (Commit `<64396cff7209a6d12f7a8c8b6c06b4a3b5e86f3b>`)
+- **Audit Summary**:
+    - Positive:
+        1. Actor abided strictly by prompt.
