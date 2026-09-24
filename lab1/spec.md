@@ -11,6 +11,7 @@
     - `schematic_id`: UUIDv7 (PK)
     - `author_id`: UUIDv7 (FK)
     - `category_id`: UUIDv7 (FK)
+    - `slug`: string (UK)
     - `title`: string
     - `description`: string (optional)
     - `litematica_url`: url
