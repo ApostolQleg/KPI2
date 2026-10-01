@@ -1,0 +1,52 @@
+erDiagram
+    User {
+        UUIDv7 user_id PK
+        string nickname UK
+        string email UK
+        string password_hash
+        timestamp created_at
+    }
+
+    Schematic {
+        UUIDv7 schematic_id PK
+        UUIDv7 author_id FK
+        UUIDv7 category_id FK
+        string slug UK
+        string title
+        string description "optional"
+        url litematica_url
+        url world_zip_url "optional"
+        timestamp created_at
+    }
+
+    Comment {
+        UUIDv7 comment_id PK
+        UUIDv7 author_id FK
+        UUIDv7 schematic_id FK
+        string content
+        timestamp created_at
+    }
+
+    Category {
+        UUIDv7 category_id PK
+        string name UK
+    }
+
+    Tag {
+        UUIDv7 tag_id PK
+        string name UK
+    }
+
+    Version {
+        UUIDv7 version_id PK
+        string version_num UK
+    }
+
+    User ||--o{ Schematic : creates
+    User }o--o{ Schematic : saves
+    User ||--o{ Comment : writes
+    Schematic ||--o{ Comment : has
+    Schematic }o--|| Category : "classified by"
+    Schematic }o--|{ Tag : has
+    Schematic }o--|{ Version : has
+
