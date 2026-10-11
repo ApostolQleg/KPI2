@@ -1,7 +1,7 @@
 # EARS Requirements — SchemaPostol
 
 > Lab 2 · Task 2 · Requirements engineering.
-> Sources: `lab2/spec.md` (actors, domain logic) and `lab1/model/er-diagram.mmd` (Task 1 ER model).
+> Sources: `lab2/spec.md` (actors, domain logic), `lab1/model/er-diagram.mmd` (Task 1 ER model) and the ADRs `lab2/adr/0005-oauth-for-authoring.md` / `lab2/adr/0006-litematica-parsing.md`.
 > All entity, attribute and role names below are copied **verbatim** from the ER model (`User`, `Schematic`, `Comment`, `Category`, `Tag`, `Version`).
 
 ## 1. EARS Pattern Conventions
@@ -25,8 +25,8 @@
 
 ### REQ-SYS-002 — Registration, authentication and profile identity
 * **Pattern:** Ubiquitous
-* **Statement:** The system SHALL support user registration and authentication such that every `User` has a unique `nickname` and a unique `email`, and SHALL expose the `nickname` as the public identifier of the account.
-* **Rationale:** `lab2/spec.md` defines `Registered User` as an authenticated player; ADR-0004 mandates `nickname` for human-readable references.
+* **Statement:** The system SHALL support user registration and authentication such that every `User` has a unique `nickname` and a unique `email`, and SHALL expose the `nickname` as the public identifier of the account. The `Author` role SHALL be an elevation of the `Registered User` role granted exclusively through the Microsoft OAuth flow (see REQ-EVN-004).
+* **Rationale:** `lab2/spec.md` defines `Registered User` as an authenticated player and `Author` as a user authenticated through a Microsoft account that owns the game; ADR-0004 mandates `nickname` for human-readable references and ADR-0005 mandates Microsoft OAuth for the `Author` role elevation.
 * **ER entities touched:** `User` (`user_id`, `nickname`, `email`, `password_hash`, `created_at`)
 
 ### REQ-SYS-003 — Referential integrity of the domain model
@@ -54,6 +54,12 @@
 * **Statement:** WHEN a `Registered User` submits a comment on a schematic page, the system SHALL persist a new `Comment` record linking the user (`author_id`) with the `Schematic` (`schematic_id`) and store its `content` and `created_at`.
 * **Rationale:** `lab2/spec.md` grants commenting to authenticated users; relations 3–4 of the ER model define comment ownership.
 * **ER entities touched:** `Comment` (`comment_id`, `author_id`, `schematic_id`, `content`, `created_at`)
+
+### REQ-EVN-004 — Microsoft OAuth elevates a Registered User to Author
+* **Pattern:** Event-driven
+* **Statement:** WHEN a `Registered User` links their game account through the Microsoft OAuth flow and Microsoft confirms ownership of a licensed copy of Minecraft, the system SHALL elevate the account to the `Author` role, granting the right to publish and classify `Schematic` entries.
+* **Rationale:** ADR-0005 makes Microsoft OAuth the mandatory gate for the `Author` role (`lab2/spec.md` → Автор): every Author must own a game license, which makes automated spam uploads financially unfeasible and clearly separates readers/commentators from content creators.
+* **ER entities touched:** `User` (`user_id`) — the ER model deliberately keeps no `role` column; the elevation is authorization data attached to the account by the OAuth link itself and introduces no new ER attributes.
 
 ## 4. State-driven (`REQ-STA-XXX`)
 
@@ -97,6 +103,12 @@
 * **Rationale:** Only authors may manage their own publications (`lab2/spec.md` → Автор); ER relation 1 (`User ||--o{ Schematic : creates`) defines exclusive ownership.
 * **ER entities touched:** `Schematic` (`author_id`), `Category`, `Tag`, `Version`
 
+### REQ-UNW-003 — Publishing without the elevated Author role is denied
+* **Pattern:** Unwanted behaviour
+* **Statement:** IF an authenticated `Registered User` whose role has not been elevated to `Author` through the Microsoft OAuth flow attempts to publish or classify a `Schematic`, THEN the system SHALL deny the operation, SHALL NOT create or mutate any `Schematic` record, and SHALL route the user to the Microsoft OAuth elevation flow.
+* **Rationale:** ADR-0005 grants publishing rights exclusively to `Author`s; without this guard any freshly registered account could bypass the OAuth gate and flood the catalog with spam.
+* **ER entities touched:** `Schematic` (`schematic_id`, `author_id`), `User` (`user_id`)
+
 ## 7. Out of Scope (`REQ-OUT-XX`)
 
 ### REQ-OUT-01 — No in-game integration
@@ -115,12 +127,14 @@
 | REQ-EVN-001 | Event-driven | Submission creates `Schematic` and dispatches parsing |
 | REQ-EVN-002 | Event-driven | Parser success enriches and publishes the `Schematic` |
 | REQ-EVN-003 | Event-driven | Comment submission persists a `Comment` |
+| REQ-EVN-004 | Event-driven | Microsoft OAuth elevates `Registered User` → `Author` |
 | REQ-STA-001 | State-driven | Unvalidated `Schematic` stays hidden |
 | REQ-STA-002 | State-driven | Guests are read-only |
 | REQ-OPT-001 | Optional | World archive → `world_zip_url` download |
 | REQ-OPT-002 | Optional | Direct M:N `saves` relation for registered users |
 | REQ-UNW-001 | Unwanted behaviour | Corrupted file rejected, author notified |
 | REQ-UNW-002 | Unwanted behaviour | Non-owner edit/delete denied |
+| REQ-UNW-003 | Unwanted behaviour | Publishing without OAuth elevation denied |
 | REQ-OUT-01 | Out of scope | No in-game integration (**UNCOVERED**) |
 
 > Traceability to use cases: `lab2/requirements/traceability-matrix.md`.

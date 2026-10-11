@@ -3,8 +3,14 @@
 ' Legend:
 '   <<include>> - mandatory base use cases composing a full use case
 '   <<extend>>  - optional capabilities performed together with the base use case
+'   Log In (UC-02) is a PRECONDITION of the authenticated use cases (lab2/spec.md, rule 2)
+'     and is therefore intentionally NOT connected via <<include>>.
+'   The Author role is an elevation of the Registered User role via Microsoft OAuth
+'     (lab2/adr/0005-oauth-for-authoring.md, REQ-EVN-004).
+'   Litematica Parser Service is an external system actor (<<System>>), not a person.
 
 @startuml
+top to bottom direction
 title SchemaPostol — Use Case Diagram (Lab 2, Task 2)
 
 skinparam backgroundColor #FFFFFF
@@ -12,15 +18,16 @@ skinparam shadowing false
 skinparam actorStyle awesome
 skinparam packageStyle rectangle
 skinparam usecaseFontSize 13
-skinparam actorsInRow 4
-skinparam nodesep 40
-skinparam ranksep 50
+skinparam nodesep 30
+skinparam ranksep 45
+skinparam wrapWidth 240
 
-' ---------- Actors ----------
+' ---------- Actors (human actors declared first so they stay grouped) ----------
 actor "Guest" as Guest
 actor "Registered User" as RegUser
 actor "Author" as Author
-actor "Litematica Parser Service" as Parser
+' External service rendered as a system component, not a person
+actor "Litematica Parser Service" <<System>> as Parser
 
 ' Inheritance: Author IS-A Registered User (per lab2/spec.md)
 RegUser <|-- Author
@@ -28,25 +35,28 @@ RegUser <|-- Author
 ' ---------- System boundary ----------
 rectangle "SchemaPostol" {
 
+  ' --- Guest (public) use cases ---
   usecase "Register Account" as UC01
   usecase "Log In" as UC02
-
   usecase "Search Schematics" as UC03
   usecase "Apply Filters\n(Category, Tag, Version)" as UC04
   usecase "View Schematic Details\n(incl. Comments)" as UC05
+  usecase "Download World Archive\n(optional, world_zip_url)" as UC14
 
+  ' --- Registered User (authenticated player) use cases ---
   usecase "Write Comment" as UC06
   usecase "Save Schematic" as UC07
   usecase "Manage Profile" as UC08
 
+  ' --- Author (Microsoft OAuth elevated) use cases ---
   usecase "Publish Schematic" as UC09
   usecase "Classify Schematic\n(Category, Tag, Version)" as UC10
-  usecase "Parse Litematica File\n(integrity + metadata)" as UC11
-  usecase "Edit Own Publication" as UC12
-
   usecase "Attach World Archive\n(optional, world_zip_url)" as UC13
-  usecase "Download World Archive\n(optional, world_zip_url)" as UC14
+  usecase "Edit Own Publication" as UC12
   usecase "Delete Own Publication" as UC15
+
+  ' --- External system use case ---
+  usecase "Parse Litematica File\n(integrity + metadata)" as UC11
 }
 
 ' ---------- Associations ----------
@@ -57,6 +67,7 @@ Guest --> UC03
 Guest --> UC05
 
 ' Registered User: authenticated player flows
+' (Log In is a precondition of these use cases, not an <<include>>)
 RegUser --> UC06
 RegUser --> UC07
 RegUser --> UC08
@@ -65,18 +76,13 @@ RegUser --> UC08
 Author --> UC09
 Author --> UC12
 
-' External service
+' External system
 Parser --> UC11
 
 ' ---------- Include relationships (mandatory) ----------
 UC03 ..> UC04 : <<include>>
-UC06 ..> UC02 : <<include>>
-UC07 ..> UC02 : <<include>>
-UC08 ..> UC02 : <<include>>
-UC09 ..> UC02 : <<include>>
 UC09 ..> UC10 : <<include>>
 UC09 ..> UC11 : <<include>>
-UC12 ..> UC02 : <<include>>
 
 ' ---------- Extend relationships (optional) ----------
 UC13 ..> UC09 : <<extend>>
@@ -85,25 +91,30 @@ UC15 ..> UC12 : <<extend>>
 
 ' ---------- Notes ----------
 note as N1
-  Authenticated players. Guests become Registered Users
-  after Register Account / Log In. Registered Users may
-  also perform the Guest use cases (Search, View Details).
+  **Precondition — authenticated session.**
+  Log In (UC-02) is a precondition of UC-06, UC-07, UC-08
+  (Registered User) and of UC-09, UC-10, UC-12, UC-13, UC-15
+  (Author); it is intentionally NOT an <<include>>.
+  The Author role is an elevation of the Registered User role
+  via Microsoft OAuth after linking a licensed game account
+  (ADR-0005 / REQ-EVN-004).
 end note
 RegUser .. N1
 
 note bottom of UC11
-  Background external service: validates the integrity of
+  Background external system: validates the integrity of
   `.litematica` files and extracts metadata (dimensions,
   block counts) that flows back into the Schematic entity.
   Awaiting validation => Schematic is hidden (REQ-STA-001).
 end note
 
-note bottom of UC13
-  Optional. When no world archive is attached,
+note as N13
+  Optional. Without a world archive
   Schematic.world_zip_url stays empty (REQ-OPT-001).
 end note
+UC13 .. N13
 
-note right of UC12
+note bottom of UC12
   Only schematics where Schematic.author_id equals the
   authenticated User.user_id may be edited (REQ-UNW-002).
 end note

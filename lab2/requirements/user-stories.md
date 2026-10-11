@@ -10,8 +10,9 @@
 | US-01 | Search and filter public schematics | Guest | REQ-SYS-001, REQ-STA-001 |
 | US-02 | Comment on a schematic | Registered User | REQ-EVN-003, REQ-STA-002, REQ-SYS-003 |
 | US-03 | Save schematics to a personal collection | Registered User | REQ-OPT-002, REQ-STA-002 |
-| US-04 | Publish a `.litematica` schematic | Author | REQ-EVN-001, REQ-EVN-002, REQ-UNW-001, REQ-OPT-001 |
-| US-05 | Manage own publications | Author | REQ-SYS-003, REQ-UNW-002 |
+| US-04 | Publish a `.litematica` schematic | Author | REQ-EVN-001, REQ-EVN-002, REQ-EVN-004, REQ-UNW-001, REQ-UNW-003, REQ-OPT-001 |
+| US-05 | Manage own publications | Author | REQ-SYS-003, REQ-EVN-004, REQ-UNW-002 |
+| US-06 | Elevate to Author via Microsoft OAuth | Registered User | REQ-EVN-004, REQ-UNW-003 |
 
 ---
 
@@ -145,7 +146,7 @@ Feature: Saving schematics to a personal collection
 |---|---|
 | Priority | Critical |
 | ER entities | `Schematic`, `User`, `Category`, `Tag`, `Version` |
-| Related requirements | REQ-EVN-001, REQ-EVN-002, REQ-UNW-001, REQ-OPT-001 |
+| Related requirements | REQ-EVN-001, REQ-EVN-002, REQ-EVN-004, REQ-UNW-001, REQ-UNW-003, REQ-OPT-001 |
 | Use cases | UC-09, UC-10, UC-11, UC-13 |
 
 ```gherkin
@@ -156,6 +157,7 @@ Feature: Publishing a schematic
 
   Scenario: Successful publication after parser validation
     Given I am authenticated as an Author with the nickname "oleg_builder"
+    And my Author role was granted through the Microsoft OAuth flow after linking my licensed Minecraft account (ADR-0005)
     When I submit the title "Victorian House", a description, the file "victorian-house.litematica", the category "Medieval", the tag "House" and the version "1.20.1"
     Then the system shall create a Schematic linked to my User via author_id
     And the system shall dispatch the .litematica file to the Litematica Parser Service
@@ -165,6 +167,7 @@ Feature: Publishing a schematic
 
   Scenario: Corrupted file is rejected
     Given I am authenticated as an Author with the nickname "oleg_builder"
+    And my Author role was granted through the Microsoft OAuth flow after linking my licensed Minecraft account (ADR-0005)
     When I submit a corrupted .litematica file for publication
     And the Litematica Parser Service reports an integrity failure
     Then the system shall reject the publication attempt
@@ -173,6 +176,7 @@ Feature: Publishing a schematic
 
   Scenario: Optional world archive attachment
     Given I am authenticated as an Author with the nickname "oleg_builder"
+    And my Author role was granted through the Microsoft OAuth flow after linking my licensed Minecraft account (ADR-0005)
     And I am publishing the schematic "Victorian House"
     When I additionally attach the world archive "victorian-house-world.zip"
     Then the system shall store its location in world_zip_url of the Schematic
@@ -191,7 +195,7 @@ Feature: Publishing a schematic
 |---|---|
 | Priority | High |
 | ER entities | `Schematic`, `Category`, `Tag`, `Version`, `User`, `Comment` |
-| Related requirements | REQ-SYS-003, REQ-UNW-002 |
+| Related requirements | REQ-SYS-003, REQ-EVN-004, REQ-UNW-002 |
 | Use cases | UC-12, UC-15 |
 
 ```gherkin
@@ -202,6 +206,7 @@ Feature: Managing own publications
 
   Scenario: Edit own publication metadata
     Given I am authenticated as an Author with the nickname "oleg_builder"
+    And my Author role was granted through the Microsoft OAuth flow after linking my licensed Minecraft account (ADR-0005)
     And the schematic with the slug "victorian-house" is authored by me
     When I change its title to "Victorian Townhouse" and reassign its category
     Then the system shall update the Schematic accordingly
@@ -209,6 +214,7 @@ Feature: Managing own publications
 
   Scenario: Delete own publication
     Given I am authenticated as an Author with the nickname "oleg_builder"
+    And my Author role was granted through the Microsoft OAuth flow after linking my licensed Minecraft account (ADR-0005)
     And the schematic with the slug "old-beta-build" is authored by me
     When I delete that schematic
     Then the system shall remove it from the public catalog
@@ -216,6 +222,7 @@ Feature: Managing own publications
 
   Scenario: Editing a foreign publication is denied
     Given I am authenticated as an Author with the nickname "oleg_builder"
+    And my Author role was granted through the Microsoft OAuth flow after linking my licensed Minecraft account (ADR-0005)
     And the schematic with the slug "rival-mega-base" is authored by another user
     When I attempt to edit or delete that schematic
     Then the system shall deny the operation
@@ -225,9 +232,54 @@ Feature: Managing own publications
 
 ---
 
+## US-06 — Elevate to Author via Microsoft OAuth
+
+**As a** Registered User,
+**I want to** link my licensed Minecraft account through Microsoft OAuth so that my account is elevated to the `Author` role,
+**so that** I can publish my own schematics.
+
+| Field | Value |
+|---|---|
+| Priority | High |
+| ER entities | `User` (`user_id`) |
+| Related requirements | REQ-EVN-004, REQ-UNW-003 |
+| Use cases | UC-08, UC-09 |
+
+```gherkin
+Feature: Elevating a Registered User to Author via Microsoft OAuth
+  As a Registered User
+  I want to link my licensed Minecraft account through Microsoft OAuth
+  So that I can publish my own schematics
+
+  Scenario: Successful elevation to Author
+    Given I am authenticated with the nickname "oleg_builder"
+    And my account currently has the Registered User role
+    When I start the Microsoft OAuth flow from my profile
+    And Microsoft confirms that the linked account owns a licensed copy of Minecraft
+    Then the system shall elevate my account to the Author role
+    And I shall be allowed to publish schematics
+
+  Scenario: Elevation is not granted without a licensed game account
+    Given I am authenticated with the nickname "oleg_builder"
+    When I complete the Microsoft OAuth flow without confirming a licensed Minecraft account
+    Then the system shall not elevate my account to the Author role
+    And I shall remain a Registered User
+
+  Scenario: Publishing is blocked before elevation
+    Given I am authenticated with the nickname "oleg_builder"
+    And my account has not been elevated to the Author role
+    When I attempt to submit a schematic for publication
+    Then the system shall deny the operation
+    And no Schematic record shall be created
+    And the system shall route me to the Microsoft OAuth elevation flow
+```
+
+---
+
 ## Notes
 
 * `Litematica Parser Service` is an external system actor (`lab2/spec.md`); its behaviour inside scenarios is expressed as preconditions/triggers (`the Litematica Parser Service confirms/reports ...`), which map to REQ-EVN-001, REQ-EVN-002 and REQ-UNW-001.
+* Every `Author` scenario (US-04, US-05) starts from an account whose role was elevated through the Microsoft OAuth flow (REQ-EVN-004, ADR-0005): `Registered User` → `Author`. The ER model keeps no `role` attribute, so the elevation introduces no new entities or attributes — it is authorization data of the `User` account.
 * All identifiers used above (`slug`, `author_id`, `world_zip_url`, entity names) match the ER model of `lab1/model/er-diagram.mmd` exactly.
 * Use case IDs (UC-xx) are defined in `lab2/model/use-case-diagram.puml` and mapped to requirements in `lab2/requirements/traceability-matrix.md`.
 
