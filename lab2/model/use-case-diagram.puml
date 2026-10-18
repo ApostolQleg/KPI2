@@ -7,7 +7,8 @@
 '     and is therefore intentionally NOT connected via <<include>>.
 '   The Author role is an elevation of the Registered User role via Microsoft OAuth
 '     (lab2/adr/0005-oauth-for-authoring.md, REQ-EVN-004).
-'   Litematica Parser Service is an external system actor (<<System>>), not a person.
+'   Litematica Parser Service is NOT an actor (lab2/spec.md): it is a
+'     dependent external background service, drawn OUTSIDE the system boundary.
 
 @startuml
 top to bottom direction
@@ -22,12 +23,10 @@ skinparam nodesep 30
 skinparam ranksep 45
 skinparam wrapWidth 240
 
-' ---------- Actors (human actors declared first so they stay grouped) ----------
+' ---------- Actors (per lab2/spec.md: Guest, Registered User, Author only) ----------
 actor "Guest" as Guest
 actor "Registered User" as RegUser
 actor "Author" as Author
-' External service rendered as a system component, not a person
-actor "Litematica Parser Service" <<System>> as Parser
 
 ' Inheritance: Author IS-A Registered User (per lab2/spec.md)
 RegUser <|-- Author
@@ -55,8 +54,14 @@ rectangle "SchemaPostol" {
   usecase "Edit Own Publication" as UC12
   usecase "Delete Own Publication" as UC15
 
-  ' --- External system use case ---
+  ' --- Parser flow (invoked by the system, not by an actor) ---
   usecase "Parse Litematica File\n(integrity + metadata)" as UC11
+}
+
+' ---------- Dependent external service — OUTSIDE the system boundary ----------
+' Per lab2/spec.md the parser is NOT an actor: it is a background service
+' the main system depends on for integrity checks and metadata extraction.
+rectangle "Litematica Parser Service\n(dependent external service — not an actor)" as ParserSvc {
 }
 
 ' ---------- Associations ----------
@@ -76,13 +81,14 @@ RegUser --> UC08
 Author --> UC09
 Author --> UC12
 
-' External system
-Parser --> UC11
-
 ' ---------- Include relationships (mandatory) ----------
 UC03 ..> UC04 : <<include>>
 UC09 ..> UC10 : <<include>>
 UC09 ..> UC11 : <<include>>
+
+' ---------- Dependent external service (NOT an actor — lab2/spec.md) ----------
+' The system dispatches the uploaded file to the background parser service
+UC11 ..> ParserSvc : <<delegate>>
 
 ' ---------- Extend relationships (optional) ----------
 UC13 ..> UC09 : <<extend>>
@@ -102,10 +108,11 @@ end note
 RegUser .. N1
 
 note bottom of UC11
-  Background external system: validates the integrity of
-  `.litematica` files and extracts metadata (dimensions,
-  block counts) that flows back into the Schematic entity.
-  Awaiting validation => Schematic is hidden (REQ-STA-001).
+  Dependent background service (not an actor, lab2/spec.md):
+  validates the integrity of `.litematica` files and extracts
+  metadata (dimensions, block counts) that flows back into
+  the Schematic entity. Awaiting validation => Schematic is
+  hidden (REQ-STA-001).
 end note
 
 note as N13
