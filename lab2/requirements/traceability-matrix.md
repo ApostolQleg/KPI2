@@ -18,7 +18,7 @@
 | UC-08 | Manage Profile (Microsoft OAuth account link) | Registered User |
 | UC-09 | Publish Schematic | Author |
 | UC-10 | Classify Schematic (Category, Tag, Version) | Author |
-| UC-11 | Parse Litematica File (integrity + metadata) | Litematica Parser Service `<<System>>` |
+| UC-11 | Parse Litematica File (integrity + metadata) | — (dependent external background service `Litematica Parser Service`, **not an actor** per `lab2/spec.md`; reached via `<<delegate>>` from UC-11) |
 | UC-12 | Edit Own Publication | Author |
 | UC-13 | Attach World Archive (optional, `world_zip_url`) | Author |
 | UC-14 | Download World Archive (optional, `world_zip_url`) | Guest |

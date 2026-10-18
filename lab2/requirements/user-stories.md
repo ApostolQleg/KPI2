@@ -1,7 +1,7 @@
 # User Stories — SchemaPostol
 
 > Lab 2 · Task 2 · Gherkin scenarios.
-> Every scenario uses `GIVEN / WHEN / THEN` steps and references only the actors from `lab2/spec.md` (`Guest`, `Registered User`, `Author`, `Litematica Parser Service`) and the ER entities from `lab1/model/er-diagram.mmd`.
+> Every scenario uses `GIVEN / WHEN / THEN` steps and references only the actors from `lab2/spec.md` (`Guest`, `Registered User`, `Author`) and the ER entities from `lab1/model/er-diagram.mmd`. The `Litematica Parser Service` is not an actor (`lab2/spec.md`): it is a dependent external background service used inside scenarios as a precondition/trigger.
 
 ## Index
 
@@ -278,7 +278,7 @@ Feature: Elevating a Registered User to Author via Microsoft OAuth
 
 ## Notes
 
-* `Litematica Parser Service` is an external system actor (`lab2/spec.md`); its behaviour inside scenarios is expressed as preconditions/triggers (`the Litematica Parser Service confirms/reports ...`), which map to REQ-EVN-001, REQ-EVN-002 and REQ-UNW-001.
+* `Litematica Parser Service` is a dependent external background service, **not an actor** (`lab2/spec.md`); its behaviour inside scenarios is expressed as preconditions/triggers (`the Litematica Parser Service confirms/reports ...`), which map to REQ-EVN-001, REQ-EVN-002 and REQ-UNW-001.
 * Every `Author` scenario (US-04, US-05) starts from an account whose role was elevated through the Microsoft OAuth flow (REQ-EVN-004, ADR-0005): `Registered User` → `Author`. The ER model keeps no `role` attribute, so the elevation introduces no new entities or attributes — it is authorization data of the `User` account.
 * All identifiers used above (`slug`, `author_id`, `world_zip_url`, entity names) match the ER model of `lab1/model/er-diagram.mmd` exactly.
 * Use case IDs (UC-xx) are defined in `lab2/model/use-case-diagram.puml` and mapped to requirements in `lab2/requirements/traceability-matrix.md`.
