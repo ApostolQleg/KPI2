@@ -1,0 +1,80 @@
+' Lab 3 · Task 3 · Scenario 3 — Session Verification & Token Rotation
+' Unified human actor "User"; context role shown via note.
+' Session storage & refresh-token rotation per lab3/adr/0007-sessions-storage.md.
+
+@startuml
+title SchemaPostol - Scenario 3: Session Verification & Token Rotation (03-token-refresh)
+
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+
+' ---------- Unified human actor + system + DB entities ----------
+actor "User" as HumanUser
+participant "Frontend" as FE
+participant "Backend" as BE
+database "User" as UserEntity
+database "Session" as SessionEntity
+
+note right of HumanUser
+  Unified actor **User**.
+  Context role: **Registered User** while the session is valid,
+  degrades to **Guest** when the refresh token is rejected.
+end note
+
+'
+' ================= SESSION VERIFICATION =================
+'
+== Authorized request ==
+
+HumanUser -> FE : perform an authorized action
+FE -> BE : GET /api/schematics (Bearer accessToken)
+activate BE
+BE -> BE : verifyJwt(accessToken)
+alt accessToken valid
+  BE --> FE : 200 OK - requested operation executed
+else accessToken invalid / expired
+  BE --> FE : 401 Unauthorized {error: "refresh token required"}
+end
+deactivate BE
+
+'
+' ================= TOKEN ROTATION =================
+'
+opt access token was rejected - refresh flow
+  FE -> BE : POST /auth/refresh\n(HttpOnly refreshToken cookie attached by browser)
+  activate BE
+  BE -> SessionEntity : findByHash(hash(refreshToken)) + check expires_at
+  activate SessionEntity
+  SessionEntity --> BE : session | null
+  deactivate SessionEntity
+  alt refreshToken valid (session exists, not expired)
+    BE -> BE : rotate - generate new accessToken + refreshToken
+    BE -> SessionEntity : updateSession(session_id,\nhash(newRefreshToken))
+    activate SessionEntity
+    SessionEntity --> BE : OK
+    deactivate SessionEntity
+    BE --> FE : 200 OK - new accessToken (json) +\nnew refreshToken (HttpOnly cookie)
+  else refreshToken invalid / expired / stolen
+    BE -> SessionEntity : deleteSession(session_id)
+    activate SessionEntity
+    SessionEntity --> BE : OK
+    deactivate SessionEntity
+    BE --> FE : 401 Unauthorized - clear refreshToken cookie
+  end
+  deactivate BE
+  note over FE
+    **Token storage:** the new `accessToken` is kept in JS memory;
+    the browser manages the refreshed HttpOnly cookie.
+    On failure tokens are cleared and **User becomes Guest**.
+  end note
+end
+
+note over SessionEntity
+  **Session (ADR-0007):** refresh token is stored HASHED; rotation
+  happens on every `POST /auth/refresh`, enabling theft detection
+  and instant revocation by `user_id`.
+end note
+
+@enduml
