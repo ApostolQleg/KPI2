@@ -32,6 +32,7 @@ end note
 == Registration ==
 
 HumanUser -> FE : click "Register" and enter\nregistration data (nickname, email, password)
+activate FE
 FE -> BE : POST /auth/register\n{nickname, email, password}
 activate BE
 BE -> UserEntity : findByEmail(email), findByNickname(nickname)
@@ -49,6 +50,7 @@ else valid input - new user
   BE --> FE : 201 Created {userId}
 end
 deactivate BE
+deactivate FE
 note over BE : Validation failed -> registration rejected;\notherwise the new User row is persisted.\nFlow continues into the Login scenario (step 2).
 
 '
@@ -57,6 +59,7 @@ note over BE : Validation failed -> registration rejected;\notherwise the new Us
 == Login ==
 
 HumanUser -> FE : click "Login" and enter credentials\n(email, password)
+activate FE
 FE -> BE : POST /auth/login {email, password}
 activate BE
 BE -> UserEntity : findByEmail(email)
@@ -84,5 +87,6 @@ note over FE
   the browser automatically attaches the `refreshToken`
   HttpOnly cookie on subsequent requests.
 end note
+deactivate FE
 
 @enduml

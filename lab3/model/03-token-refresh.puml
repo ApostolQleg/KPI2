@@ -29,6 +29,7 @@ end note
 == Authorized request ==
 
 HumanUser -> FE : perform an authorized action
+activate FE
 FE -> BE : GET /api/schematics (Bearer accessToken)
 activate BE
 BE -> BE : verifyJwt(accessToken)
@@ -70,6 +71,7 @@ opt access token was rejected - refresh flow
     On failure tokens are cleared and **User becomes Guest**.
   end note
 end
+deactivate FE
 
 note over SessionEntity
   **Session (ADR-0007):** refresh token is stored HASHED; rotation

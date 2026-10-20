@@ -32,15 +32,18 @@ end note
 == Sign in with Microsoft ==
 
 HumanUser -> FE : click "Sign in with Microsoft"
+activate FE
 FE -> BE : GET /auth/oauth/microsoft (request authorize URL)
 activate BE
 BE -> BE : generate random state (CSRF protection)
 BE --> FE : 200 OK {authorizeUrl, state}
 deactivate BE
+deactivate FE
 
 FE -> MS : redirect user to Microsoft authorization page
 HumanUser -> MS : enter Microsoft credentials and consent
 MS --> FE : redirect with temporary authorization code (+ state)
+activate FE
 FE -> BE : POST /auth/oauth/microsoft/callback\n{code, state}
 activate BE
 alt state mismatch OR authorization code invalid
@@ -86,6 +89,7 @@ note over FE
   **Token storage:** JS keeps `accessToken` in memory; the
   browser automatically manages the `refreshToken` HttpOnly cookie.
 end note
+deactivate FE
 note over HumanUser
   **Author elevation (ADR-0005):** linking a licensed Microsoft/Mojang
   account flips `User.isAuthor` to true, promoting a Registered User to Author.
