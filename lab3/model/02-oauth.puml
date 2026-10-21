@@ -1,0 +1,98 @@
+' Lab 3 · Task 3 · Scenario 2 — Microsoft OAuth Session Creation
+' and Author role elevation via the isAuthor flag on the User table.
+' Unified human actor "User"; context role shown via note.
+' External system "Microsoft OAuth" (lab2/adr/0005-oauth-for-authoring.md).
+
+@startuml
+title SchemaPostol - Scenario 2: Microsoft OAuth & Author Elevation (02-oauth)
+
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+
+' ---------- Unified human actor + external system + DB entities ----------
+actor "User" as HumanUser
+participant "Frontend" as FE
+participant "Backend" as BE
+participant "Microsoft OAuth" as MS
+database "User" as UserEntity
+database "Session" as SessionEntity
+
+note right of HumanUser
+  Unified actor **User**.
+  Context role: **Guest** starting the flow; after linking a
+  licensed Minecraft account the user may be elevated to
+  **Author** (`isAuthor` flag) or remains a **Registered User**.
+end note
+
+'
+' ================= OAUTH SESSION CREATION =================
+'
+== Sign in with Microsoft ==
+
+HumanUser -> FE : click "Sign in with Microsoft"
+activate FE
+FE -> BE : GET /auth/oauth/microsoft (request authorize URL)
+activate BE
+BE -> BE : generate random state (CSRF protection)
+BE --> FE : 200 OK {authorizeUrl, state}
+deactivate BE
+deactivate FE
+
+FE -> MS : redirect user to Microsoft authorization page
+HumanUser -> MS : enter Microsoft credentials and consent
+MS --> FE : redirect with temporary authorization code (+ state)
+activate FE
+FE -> BE : POST /auth/oauth/microsoft/callback\n{code, state}
+activate BE
+alt state mismatch OR authorization code invalid
+  BE --> FE : 401 Unauthorized {error: "OAuth authentication failed"}
+else callback valid
+  BE -> MS : exchange authorization code for token pair
+  activate MS
+  MS --> BE : {microsoftAccessToken, microsoftRefreshToken}
+  deactivate MS
+  BE -> MS : GET user profile (Bearer microsoftAccessToken)
+  activate MS
+  MS --> BE : Microsoft account data {nickname, email}
+  deactivate MS
+
+  ' ---- existence check + Author elevation via isAuthor ----
+  BE -> UserEntity : findByEmail(email)
+  activate UserEntity
+  UserEntity --> BE : user {user_id, isAuthor} | null
+  deactivate UserEntity
+  alt user does not exist yet
+    BE -> UserEntity : INSERT {user_id, nickname, email,\npassword_hash=null, isAuthor=true, created_at}
+    activate UserEntity
+    UserEntity --> BE : OK
+    deactivate UserEntity
+  else user exists and isAuthor = false
+    BE -> UserEntity : UPDATE User SET isAuthor=true\nWHERE user_id = ...
+    activate UserEntity
+    UserEntity --> BE : OK
+    deactivate UserEntity
+  else user exists and isAuthor = true
+    note right : already an Author - no change,\ncontinue the scenario
+  end
+
+  BE -> BE : generate refreshToken (7 days) +\naccessToken (15 min JWT)
+  BE -> SessionEntity : createSession(user_id, hash(refreshToken),\nsession info: ip, user_agent)
+  activate SessionEntity
+  SessionEntity --> BE : session_id
+  deactivate SessionEntity
+  BE --> FE : 200 OK - accessToken (json) +\nrefreshToken (HttpOnly, Secure, Domain cookie)
+end
+deactivate BE
+note over FE
+  **Token storage:** JS keeps `accessToken` in memory; the
+  browser automatically manages the `refreshToken` HttpOnly cookie.
+end note
+deactivate FE
+note over HumanUser
+  **Author elevation (ADR-0005):** linking a licensed Microsoft/Mojang
+  account flips `User.isAuthor` to true, promoting a Registered User to Author.
+end note
+
+@enduml
