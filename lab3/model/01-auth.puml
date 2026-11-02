@@ -1,0 +1,92 @@
+' Lab 3 · Task 3 · Scenario 1 — Classic Registration & Login
+' Unified human actor "User"; context role shown via note.
+' Consistent with lab3/spec.md, lab1 ERD (+isAuthor), ADR-0007.
+' Password hashing/verification: Argon2id.
+' Token storage: accessToken in JS memory; refreshToken in HttpOnly cookie.
+
+@startuml
+title SchemaPostol - Scenario 1: Classic Registration & Login (01-auth)
+
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+
+' ---------- Unified human actor + system + DB entities ----------
+actor "User" as HumanUser
+participant "Frontend" as FE
+participant "Backend" as BE
+database "User" as UserEntity
+database "Session" as SessionEntity
+
+note right of HumanUser
+  Unified actor **User**.
+  Context role in this scenario:
+  **Guest** before authenticating, becomes a
+  **Registered User** after a successful login.
+end note
+
+'
+' ================= REGISTRATION (UC-01) =================
+'
+== Registration ==
+
+HumanUser -> FE : click "Register" and enter\nregistration data (nickname, email, password)
+activate FE
+FE -> BE : POST /auth/register\n{nickname, email, password}
+activate BE
+BE -> UserEntity : findByEmail(email), findByNickname(nickname)
+activate UserEntity
+UserEntity --> BE : existing user | null
+deactivate UserEntity
+alt invalid input - user already exists
+  BE --> FE : 409 Conflict {error: "nickname or email already taken"}
+else valid input - new user
+  BE -> BE : hashPassword(password) using Argon2id
+  BE -> UserEntity : INSERT {user_id, nickname, email,\npassword_hash, isAuthor=false, created_at}
+  activate UserEntity
+  UserEntity --> BE : OK
+  deactivate UserEntity
+  BE --> FE : 201 Created {userId}
+end
+deactivate BE
+deactivate FE
+note over BE : Validation failed -> registration rejected;\notherwise the new User row is persisted.\nFlow continues into the Login scenario (step 2).
+
+'
+' ================= LOGIN (UC-02) =================
+'
+== Login ==
+
+HumanUser -> FE : click "Login" and enter credentials\n(email, password)
+activate FE
+FE -> BE : POST /auth/login {email, password}
+activate BE
+BE -> UserEntity : findByEmail(email)
+activate UserEntity
+UserEntity --> BE : user {user_id, password_hash, isAuthor} | null
+deactivate UserEntity
+alt no user with such email
+  BE --> FE : 401 Unauthorized {error: "invalid credentials"}
+else user found
+  BE -> BE : verify password via Argon2id(password,\npassword_hash)
+  alt password mismatch
+    BE --> FE : 401 Unauthorized {error: "invalid credentials"}
+  else password matches
+    BE -> BE : generate refreshToken (7 days) +\naccessToken (15 min JWT)
+    BE -> SessionEntity : createSession(user_id, hash(refreshToken),\nsession info: ip, user_agent)
+    activate SessionEntity
+    SessionEntity --> BE : session_id
+    deactivate SessionEntity
+    BE --> FE : 200 OK - accessToken (json) +\nrefreshToken (HttpOnly, Secure, Domain cookie)
+  end
+end
+deactivate BE
+note over FE
+  **Token storage:** JS stores `accessToken` in memory;
+  the browser automatically attaches the `refreshToken`
+  HttpOnly cookie on subsequent requests.
+end note
+deactivate FE
+
+@enduml
