@@ -15,6 +15,7 @@
 > - Adhere to the 6 swimlanes (`Author`, `Frontend`, `Backend`, `Storage (S3)`, `Litematica Parser Service`, `Database`), conditional decision nodes, parallel execution paths, and terminal points (`stop`).
 > - Use new PlantUML Activity Beta syntax (`|Swimlane|`, `start`, `stop`, `if (...) then (...) else (...) endif`, `fork ... fork again ... end fork`). Ensure all control paths converge deterministically without deadlocks.
 > - Do not invent domain entities, attributes, or business rules not present in `lab4/spec.md` or its referenced artifacts (`lab2`, `lab3`, ADRs).
+> - Render generated file into `.png` format.
 
 ## Контекст
 - Файл: `lab4/spec.md` (commit: `<input commit hash>`)
