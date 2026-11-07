@@ -18,7 +18,7 @@
 > - Render generated file into `.png` format.
 
 ## Контекст
-- Файл: `lab4/spec.md` (commit: `<input commit hash>`)
+- Файл: `lab4/spec.md` (commit: `<10213906db6475c5a02677d90e5f8e128b1994fc>`)
 - Суміжні контексти: `lab2/model/use-case-diagram.puml`, `lab3/model/02-oauth.puml`, `lab2/adr/0005-oauth-for-authoring.md`, `lab2/adr/0006-external-parser-service.md`
 
 ## Очікуваний результат
