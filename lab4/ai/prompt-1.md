@@ -8,7 +8,7 @@
 > Phase 1: Critical Analysis & Clarifications (STOP & ASK FIRST)
 > - Perform a critical review of the control flows in `lab4/spec.md`.
 > - Identify any architectural bottlenecks, potential concurrency deadlocks around the `fork`/`join` synchronization bar (such as S3 upload failures vs. parser failures), validation loops, or optional branches (`world_zip_url`).
-> - Do NOT generate the diagram code immediately. Stop execution, formulate precise clarifying questions strictly in Ukrainian, and present concrete trade-off options for each ambiguity. Await my answers before proceeding.
+> - Do NOT generate the diagram code immediately. Stop execution, formulate precise clarifying questions strictly in English, and present concrete trade-off options for each ambiguity. Await my answers before proceeding.
 >
 > Phase 2: Declarative Model Generation (AFTER CLARIFICATIONS)
 > - Once I provide answers to your clarifying questions, generate the complete PlantUML code strictly incorporating the resolved decisions.
