@@ -2,9 +2,9 @@
 title UC09 — Publish Schematic (Activity Diagram · PlantUML Beta)
 skinparam backgroundColor #FFFFFF
 skinparam shadowing false
-skinparam nodesep 28
-skinparam ranksep 44
-skinparam padding 8
+skinparam nodesep 20
+skinparam ranksep 24
+skinparam padding 4
 
 ' Swimlane order (left -> right): Author, Frontend, Backend,
 ' Storage (S3), Litematica Parser Service, Database
@@ -49,17 +49,17 @@ else
   stop
 endif
 
-|Author|
-: Fill metadata (title;\ndescription, category, tags;\nsupported game versions);
-: Choose .litematica file\nand optionally .zip archive;
-: Click Publish;
-
 |Frontend|
 : Set validation_attempts = 0;
 repeat
+  |Author|
+  : Fill metadata (title;\ndescription, category, tags;\nsupported game versions);
+  : Choose .litematica file\nand optionally .zip archive;
+  : Click Publish;
+  |Frontend|
   : Client-side validation:\nfile extensions + required fields;\n.zip extension only if selected;
   if (Client validation failed?) then
-    : Display form errors;
+    : Display form errors;\nreturn control to Author to re-edit;
     : Increment validation_attempts;
   endif
 repeat while (Client validation failed AND validation_attempts < 5)
