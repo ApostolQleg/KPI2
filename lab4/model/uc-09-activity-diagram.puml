@@ -2,9 +2,10 @@
 title UC09 — Publish Schematic (Activity Diagram · PlantUML Beta)
 skinparam backgroundColor #FFFFFF
 skinparam shadowing false
-skinparam nodesep 20
-skinparam ranksep 24
-skinparam padding 4
+skinparam linetype ortho
+skinparam nodesep 24
+skinparam ranksep 28
+skinparam padding 6
 
 ' Swimlane order (left -> right): Author, Frontend, Backend,
 ' Storage (S3), Litematica Parser Service, Database
@@ -23,26 +24,28 @@ start
 : Send rights-check request to Backend;
 |Backend|
 : Validate authentication session (access token);
-if (Session invalid?) then
+if (Session invalid?) then (yes)
   |Database|
   : Query Session table;\nrefresh-token rotation (ADR-0007);
   |Backend|
-  if (Refresh succeeded?) then
+  if (Refresh succeeded?) then (yes)
     : Issue new access token;\nsession now valid;
-  else
+  else (no)
     : Return 403 Forbidden;
     |Frontend|
     : Block form;\noffer Microsoft OAuth;
     stop
   endif
+else (no)
+  : Session is valid;
 endif
 
 : Check Author flag (isAuthor);
-if (isAuthor = true?) then
+if (isAuthor = true?) then (yes)
   : Return 200 OK;
   |Frontend|
   : Display upload form;
-else
+else (no)
   : Return 403 Forbidden;
   |Frontend|
   : Block form;\noffer Microsoft OAuth;
@@ -57,81 +60,82 @@ repeat
   : Choose .litematica file\nand optionally .zip archive;
   : Click Publish;
   |Frontend|
-  : Client-side validation:\nfile extensions + required fields;\n.zip extension only if selected;
-  if (Client validation failed?) then
+  : Client-side validation:\nfile extensions + required;\n.zip only if file selected;
+  if (Client validation failed?) then (yes)
     : Display form errors;\nreturn control to Author to re-edit;
     : Increment validation_attempts;
+    if (validation_attempts >= 5?) then (yes)
+      stop
+    endif
   endif
-repeat while (Client validation failed AND validation_attempts < 5)
-if (Client validation failed?) then
+repeat while (Client validation failed?)
+
+: Send POST /api/schematics\n(multipart/form-data) to Backend;
+|Backend|
+: Validate MIME type;\nsize limits, classification links;
+if (Server validation failed?) then (yes)
+  : Return 400 Bad Request;
+  |Frontend|
+  : Display error message;
   stop
-else
-  : Send POST /api/schematics\n(multipart/form-data) to Backend;
+else (no)
+  : Generate slug; create DB draft\n(is_published = false);
+  |Database|
+  : Insert draft record;
   |Backend|
-  : Validate MIME type;\nsize limits, classification links;
-  if (Server validation failed?) then
-    : Return 400 Bad Request;
+  : Fork parallel processing\n(Branch A Storage + Branch B Parser);
+  fork
+    |Backend|
+    : Set s3_attempts = 0;
+    repeat
+      |Storage (S3)|
+      : Upload .litematica\n+ optional .zip objects;\nreturn schematic_url,\nworld_zip_url;
+      if (S3 upload failed?) then (yes)
+        |Backend|
+        : Increment s3_attempts;
+        if (s3_attempts < 5?) then (yes)
+          : Exponential backoff wait\n(5s x 2^attempts);
+        endif
+      endif
+    repeat while (S3 upload failed? AND s3_attempts < 5)
+    |Backend|
+    if (S3 upload failed?) then (yes)
+      : Mark Branch A failed;
+    else (no)
+      : Mark Branch A succeeded;
+    endif
+  fork again
+    |Backend|
+    : Send .litematica binary\nto Litematica Parser Service;
+    |Litematica Parser Service|
+    : Parse NBT;\nverify checksums;\nextract dimensions (X,Y,Z);\nblock count, materials list;
+    if (Parser error?) then (yes)
+      : Mark Branch B failed;
+    else (no)
+      : Return JSON metadata;
+      : Mark Branch B succeeded;
+    endif
+  end fork
+  |Backend|
+  : Join — both branches\nreport status;
+  if (Branch A failed OR Branch B failed?) then (yes)
+    |Storage (S3)|
+    : Delete uploaded objects\n(compensation rollback);
+    |Database|
+    : Delete draft record;
+    |Backend|
+    : Return 422 Unprocessable\nEntity;
     |Frontend|
     : Display error message;
     stop
-  else
-    : Generate slug; create DB draft\n(is_published = false);
+  else (no)
     |Database|
-    : Insert draft record;
+    : Write schematic_url,\nworld_zip_url, dimensions;\nblock count, materials;\nSet is_published = true;\ncommit transaction;
     |Backend|
-    : Fork parallel processing\n(Branch A Storage + Branch B Parser);
-    fork
-      |Backend|
-      : Set s3_attempts = 0;
-      repeat
-        |Storage (S3)|
-        : Upload .litematica\n+ optional .zip objects;\nreturn schematic_url,\nworld_zip_url;
-        |Backend|
-        if (S3 upload failed?) then
-          : Increment s3_attempts;
-          if (s3_attempts < 5?) then
-            : Exponential backoff wait\n(5s x 2^attempts);
-          endif
-        endif
-      repeat while (S3 upload failed AND s3_attempts < 5)
-      if (S3 upload failed?) then
-        : Mark Branch A failed;
-      else
-        : Mark Branch A succeeded;
-      endif
-    fork again
-      |Backend|
-      : Send .litematica binary\nto Litematica Parser Service;
-      |Litematica Parser Service|
-      : Parse NBT;\nverify checksums;\nextract dimensions (X,Y,Z);\nblock count, materials list;
-      if (Parser error?) then
-        : Mark Branch B failed;
-      else
-        : Return JSON metadata;
-        : Mark Branch B succeeded;
-      endif
-    end fork
-    |Backend|
-    : Join — both branches\nreport status;
-    if (Branch A failed OR\nBranch B failed?) then
-      |Storage (S3)|
-      : Delete uploaded objects\n(compensation rollback);
-      |Database|
-      : Delete draft record;
-      |Backend|
-      : Return 422 Unprocessable\nEntity;
-      |Frontend|
-      : Display error message;
-      stop
-    else
-      |Database|
-      : Write schematic_url,\nworld_zip_url, dimensions;\nblock count, materials;\nSet is_published = true;\ncommit transaction;
-      |Backend|
-      : Return 201 Created\n+ publication data;
-      |Frontend|
-      : Redirect Author to\nschematic view page (UC05);
-      stop
-    endif
+    : Return 201 Created\n+ publication data;
+    |Frontend|
+    : Redirect Author to\nschematic view page (UC05);
+    stop
   endif
 endif
 @enduml
