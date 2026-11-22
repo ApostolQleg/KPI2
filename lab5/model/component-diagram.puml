@@ -3,9 +3,8 @@ title SchemaPostol - Component Diagram (Lab 5)
 
 skinparam backgroundColor #FFFFFF
 skinparam shadowing false
-skinparam linetype ortho
-skinparam nodesep 62
-skinparam ranksep 84
+skinparam nodesep 80
+skinparam ranksep 65
 skinparam padding 20
 skinparam componentStyle rectangle
 skinparam defaultFontName "Segoe UI"
@@ -15,7 +14,6 @@ skinparam interfaceFontSize 11
 skinparam titleFontSize 18
 skinparam titleFontStyle bold
 
-' Container / stereotype colors via skinparam
 skinparam rectangle {
   BackgroundColor #f5f5f5
   BorderColor #007acc
@@ -39,18 +37,22 @@ skinparam cloud {
 
 top to bottom direction
 
-' ================= SYSTEM BOUNDARY: SchemaPostol =================
 rectangle "SchemaPostol" <<System Boundary>> {
 
-  ' --- Client ---
+  ' --- Rank 1: Client (top) ---
   component "Web UI (SPA)" as WEBUI <<Client>>
 
-  ' --- Backend modular monolith ---
-  package "Backend (modular monolith)" {
+  ' --- Rank 2: Backend modular monolith ---
+  package "Backend (modular monolith)" as BACKEND {
+
     component "REST API" as RESTAPI
-    component "Auth Service" as AUTHSVC
-    component "Schematic Service" as SCHEMATICSVC
-    component "Comment Service" as COMSVC
+
+    together {
+      component "Auth Service" as AUTHSVC
+      component "Schematic Service" as SCHEMATICSVC
+      component "Comment Service" as COMSVC
+    }
+
     component "Data Access Layer" as DAL
 
     ' Internal backend interfaces (provided by backend modules)
@@ -60,8 +62,10 @@ rectangle "SchemaPostol" <<System Boundary>> {
     interface "IDataAccess" as IDATA
   }
 
-  ' --- Internal infrastructure ---
+  ' --- Rank 3: Database (bottom) ---
   database "PostgreSQL Database" as PGSQL
+
+  ' --- Message Queue (right side, adjacent to Schematic Service) ---
   component "Message Queue" as MQ
 
   ' Internal platform-level interfaces (outside Backend package)
@@ -69,6 +73,11 @@ rectangle "SchemaPostol" <<System Boundary>> {
   interface "ISqlDriver" as ISQL
   interface "IParseJobQueue" as IPQ
 }
+
+' Hidden ranking edges to force vertical spine (invisible in render)
+WEBUI -[hidden]down-> BACKEND
+BACKEND -[hidden]down-> MQ
+MQ -[hidden]down-> PGSQL
 
 ' ================= EXTERNAL SYSTEMS (strictly outside system boundary) =================
 cloud "Microsoft OAuth" as MSOAUTH <<External>>
@@ -95,40 +104,41 @@ S3        -- IS3R
 MQ        -- IPQ
 
 ' ================= REQUIRED INTERFACES (socket: Consumer -( Interface) =================
-' Web UI (SPA)
-WEBUI -( IREST
-WEBUI -( IMSRED
-WEBUI -( IS3R
+' Web UI (SPA) - downward connections
+WEBUI -down-( IREST
+WEBUI -down-( IMSRED
+WEBUI -down-( IS3R
 
-' REST API facade -> backend services
-RESTAPI -( IAUTH
-RESTAPI -( ISCHEM
-RESTAPI -( ICOMMENT
+' REST API facade -> backend services (downward)
+RESTAPI -down-( IAUTH
+RESTAPI -down-( ISCHEM
+RESTAPI -down-( ICOMMENT
 
-' Backend services -> Data Access Layer (no service reaches PostgreSQL directly)
-AUTHSVC -( IDATA
-SCHEMATICSVC -( IDATA
-COMSVC -( IDATA
+' Backend services -> Data Access Layer (downward)
+AUTHSVC -down-( IDATA
+SCHEMATICSVC -down-( IDATA
+COMSVC -down-( IDATA
 
-' Data Access Layer -> PostgreSQL (sole DB access)
-DAL -( ISQL
+' Data Access Layer -> PostgreSQL (downward, sole DB access)
+DAL -down-( ISQL
 
 ' Auth Service -> Microsoft OAuth (back-channel token exchange)
-AUTHSVC -( IMSAPI
+AUTHSVC -down-( IMSAPI
 
 ' Schematic Service -> S3 (upload / rollback deletion) and Message Queue (parse job)
 SCHEMATICSVC -( IS3W
-SCHEMATICSVC -( IPQ
+SCHEMATICSVC -down-( IPQ
 
 ' Litematica Parser Service -> Message Queue (result) and S3 read-only (file by link)
 PARSER -( IPQ
 PARSER -( IS3R
 
 ' ================= NOTE: request/reply timeout & compensation rollback =================
-note right of MQ
+note bottom of MQ
   Request/reply: correlation_id + reply channel;
   on timeout or parser failure -> compensation rollback:
   delete S3 objects (IS3StorageApi) + delete DB draft (IDataAccess).
 end note
 
 @enduml
+
