@@ -128,3 +128,26 @@ Once you answer Q1–Q5, I will:
 - **Q5**: Use the shorter component names consistently everywhere: `REST API` (as a standalone facade component inside the Backend modular monolith), `Auth Service`, `Schematic Service`, `Comment Service`, and `Data Access Layer`, with matching interfaces `IAuthService`, `ISchematicService`, `ICommentService`.
 
 ## Аудит результатів
+- **Статус**: Не прийнято
+- **Хеш коміту згенерованих артефактів**: `0017cea8bb7279039c17685695fade0c9537f623`
+- **Згенеровані файли**: 
+  - `lab5/model/component-diagram.puml`
+  - `lab5/model/component-diagram.png`
+- **Огляд результатів**:
+  - **`component-diagram.puml`**:
+    - Склад компонентів, короткі назви (`Q5`), межа системи `SchemaPostol` і доступ до `PostgreSQL` виключно через `Data Access Layer` відповідають `spec.md`.
+    - інтерфейси підключені до провайдерів як глухі гілки (`--> : provides`), а споживачі з'єднані напряму з компонентами (`--> : requires`) в обхід самих інтерфейсів.
+    - усі 11 `interface` оголошено за межами `rectangle "SchemaPostol"`, через що `IRestApi`, `IAuthService`, `ISchematicService`, `ICommentService`, `IDataAccess`, `ISqlDriver` та `IParseJobQueue` випали назовні.
+    - **Помилка по `Q1`/`Q3`**: для `Litematica Parser Service` вказано `IS3StorageApi` замість read-only `IS3DownloadApi`.
+    - **Пропущено `Q2`**: немає нотатки про request/reply (`correlation_id`), таймаут черги та компенсаційний відкат у S3 і БД.
+  - **`component-diagram.png`**:
+    - Биті символи в заголовку.
+    - Через винесені назовні інтерфейси сині стрілки пробивають межу системи в усі боки.
+    - Написи накладаються один на одного (`requires IDataAccessrequires IDataAccess`) та на рамки блоків (`requires IRestApi`, `requires ICommentService`).
+    - Стрілки ведуть в нікуди.
+- **Необхідні зміни**:
+  1. **Виправити UML-зв'язки інтерфейсів**: прибрати прямі стрілки між компонентами та з'єднати їх через самі інтерфейси (провайдер надає інтерфейс суцільною лінією `Component -- Interface`, споживач використовує його через socket `Consumer -( Interface` або залежність `Consumer ..> Interface`).
+  2. **Повернути внутрішні інтерфейси в межу системи**: оголосити `IRestApi`, `IAuthService`, `ISchematicService`, `ICommentService`, `IDataAccess`, `ISqlDriver`, `IParseJobQueue` усередині `SchemaPostol` (у відповідних блоках), а зовні лишити тільки інтерфейси зовнішніх систем (`IMicrosoftOAuthApi`, `IMicrosoftOAuthRedirect`, `IS3StorageApi`, `IS3DownloadApi`).
+  3. **Виправити інтерфейс парсера (`Q1`/`Q3`)**: підключити `Litematica Parser Service` до read-only `IS3DownloadApi` замість `IS3StorageApi`.
+  4. **Додати нотатку (`Q2`)**: біля `Message Queue` або `Schematic Service` додати коротку нотатку про request/reply (`correlation_id`), таймаут і компенсаційний відкат (видалення файлів у S3 + видалення чернетки в БД).
+  5. **Виправити рендер**: замінити `—` у заголовку на звичайний ASCII `-` та прибрати перетини/злипання підписів (перехід на коректні зв'язки через інтерфейси прибере дублювання написів `provides`/`requires` і суттєво розвантажить схему).
