@@ -1,7 +1,7 @@
 ---
 status: "прийнято"
 date: 2026-11-22
-decision-makers: @ApostolQleg
+decision-makers: ApostolQleg
 ---
 
 # Модульний моноліт для бекенду та межі зовнішніх інтеграцій
