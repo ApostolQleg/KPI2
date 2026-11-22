@@ -1,0 +1,123 @@
+@startuml
+title SchemaPostol — Component Diagram (Lab 5)
+
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam linetype ortho
+skinparam nodesep 55
+skinparam ranksep 72
+skinparam padding 18
+skinparam componentStyle rectangle
+skinparam defaultFontName "Segoe UI"
+skinparam defaultFontSize 13
+skinparam componentFontSize 14
+skinparam interfaceFontSize 11
+skinparam titleFontSize 18
+skinparam titleFontStyle bold
+
+' Container / stereotype colors via skinparam
+skinparam rectangle {
+  BackgroundColor #f5f5f5
+  BorderColor #007acc
+  FontColor #003366
+}
+skinparam package {
+  BackgroundColor #eef4fb
+  BorderColor #1565c0
+  FontColor #0d47a1
+}
+skinparam database {
+  BackgroundColor #e3f2fd
+  BorderColor #336791
+  FontColor #1565c0
+}
+skinparam cloud {
+  BackgroundColor #fdecea
+  BorderColor #d32f2f
+  FontColor #8b0000
+}
+
+top to bottom direction
+
+' ================= SYSTEM BOUNDARY: SchemaPostol =================
+rectangle "SchemaPostol" <<System Boundary>> {
+
+  ' --- Client ---
+  component "Web UI (SPA)" as WEBUI <<Client>>
+
+  ' --- Backend modular monolith ---
+  package "Backend (modular monolith)" {
+    component "REST API" as RESTAPI
+    component "Auth Service" as AUTHSVC
+    component "Schematic Service" as SCHEMATICSVC
+    component "Comment Service" as COMSVC
+    component "Data Access Layer" as DAL
+  }
+
+  ' --- Internal infrastructure ---
+  database "PostgreSQL Database" as PGSQL
+  component "Message Queue" as MQ
+}
+
+' ================= EXTERNAL SYSTEMS (strictly outside system boundary) =================
+cloud "Microsoft OAuth" as MSOAUTH <<External>>
+cloud "Object Storage (S3)" as S3 <<External>>
+cloud "Litematica Parser Service" as PARSER <<External>>
+
+' ================= PROVIDED INTERFACES (lollipop circles attached to providers) =================
+interface "IRestApi" as IREST
+interface "IAuthService" as IAUTH
+interface "ISchematicService" as ISCHEM
+interface "ICommentService" as ICOMMENT
+interface "IDataAccess" as IDATA
+interface "ISqlDriver" as ISQL
+interface "IMicrosoftOAuthApi" as IMSAPI
+interface "IMicrosoftOAuthRedirect" as IMSRED
+interface "IS3StorageApi" as IS3W
+interface "IS3DownloadApi" as IS3R
+interface "IParseJobQueue" as IPQ
+
+' Providers realize interfaces (lollipop)
+RESTAPI   -[#007acc]-> IREST   : provides
+AUTHSVC   -[#007acc]-> IAUTH   : provides
+SCHEMATICSVC -[#007acc]-> ISCHEM : provides
+COMSVC    -[#007acc]-> ICOMMENT : provides
+DAL       -[#007acc]-> IDATA   : provides
+PGSQL     -[#007acc]-> ISQL    : provides
+MSOAUTH   -[#d32f2f]-> IMSAPI  : provides
+MSOAUTH   -[#d32f2f]-> IMSRED  : provides
+S3        -[#d32f2f]-> IS3W    : provides
+S3        -[#d32f2f]-> IS3R    : provides
+MQ        -[#ef6c00]-> IPQ     : provides
+
+' ================= REQUIRED INTERFACES + COMPONENT DEPENDENCIES (socket) =================
+' Web UI (SPA)
+WEBUI     -[#1b5e20]-> RESTAPI  : requires IRestApi
+WEBUI     -[#1b5e20]-> MSOAUTH  : requires IMicrosoftOAuthRedirect
+WEBUI     -[#1b5e20]-> S3       : requires IS3DownloadApi
+
+' REST API facade -> backend services
+RESTAPI   -[#1565c0]-> AUTHSVC   : requires IAuthService
+RESTAPI   -[#1565c0]-> SCHEMATICSVC : requires ISchematicService
+RESTAPI   -[#1565c0]-> COMSVC    : requires ICommentService
+
+' Backend services -> Data Access Layer (no service reaches PostgreSQL directly)
+AUTHSVC   -[#1565c0]-> DAL       : requires IDataAccess
+SCHEMATICSVC -[#1565c0]-> DAL    : requires IDataAccess
+COMSVC    -[#1565c0]-> DAL       : requires IDataAccess
+
+' Data Access Layer -> PostgreSQL (sole DB access)
+DAL       -[#1565c0]-> PGSQL     : requires ISqlDriver
+
+' Auth Service -> Microsoft OAuth (back-channel token exchange)
+AUTHSVC   -[#d32f2f]-> MSOAUTH   : requires IMicrosoftOAuthApi
+
+' Schematic Service -> S3 (upload) and Message Queue (parse job)
+SCHEMATICSVC -[#1565c0]-> S3     : requires IS3StorageApi
+SCHEMATICSVC -[#1565c0]-> MQ     : requires IParseJobQueue
+
+' Litematica Parser Service -> Message Queue (result) and S3 (read file by link)
+PARSER    -[#d32f2f]-> MQ        : requires IParseJobQueue
+PARSER    -[#d32f2f]-> S3        : requires IS3StorageApi
+
+@enduml
