@@ -28,4 +28,103 @@
 - Фаза 1: отримано список уточнювальних питань щодо архітектурних меж, інтерфейсів та взаємодії через чергу й S3
 - Фаза 2: після відповідей згенеровано `lab5/model/component-diagram.puml` та якісно відрендерений `lab5/model/component-diagram.png` без накладань ліній на блоки і подібного
 
+## Отриманий результат:
+<details>
+<summary>Відповідь агента</summary>
+## Phase 1 — Critical Analysis & Clarifications (STOP & ASK FIRST)
+
+I've reviewed all single-source-of-truth and prior artifacts. Below is my alignment review, the traceability gaps I found, and clarifying questions. **No PlantUML is produced yet** — I'm waiting for your answers before Phase 2.
+
+---
+
+### Artifacts reviewed
+
+| Lab | Artifact | Key content relevant to the component diagram |
+|-----|----------|-----------------------------------------------|
+| lab1 | `model/er-diagram.mmd` | `User`, `Schematic`, `Comment`, `Category`, `Tag`, `Version`; `Schematic.litematica_url`, `world_zip_url`; M:N `saves` |
+| lab2 | `model/use-case-diagram.puml` | UC-01…UC-15; **UC-11 `Parse Litematica File` is an external background service, NOT an actor**, reached via `<<delegate>>`, outside system boundary |
+| lab2 | `adr/0005` | Microsoft OAuth gates `Author` elevation (`isAuthor`); browser redirect flow |
+| lab2 | `adr/0006` | Async `Litematica Parser Service` + **Message Queue**; lab4 skipped the queue for simplicity |
+| lab2 | `requirements/traceability-matrix.md` + `ears.md` | REQ-EVN-001/002 (dispatch parsing + publish on success), REQ-STA-001 (unvalidated hidden), REQ-OPT-001 (world archive download), REQ-OUT-01 (no in-game) |
+| lab3 | `adr/0007` | `Session` table in **PostgreSQL** (no Redis); JWT accessToken 15 min + refreshToken 7 days HttpOnly cookie |
+| lab3 | `model/02-oauth.puml` | **Browser redirect passes through Web UI (Frontend)**: `FE → MS` redirect, `MS → FE` redirect with code, then `FE → BE` callback |
+| lab4 | `model/uc-09-activity-diagram.puml` | UC09 fork/join: S3 upload w/ retry + parser call directly (no queue); **rollback = delete S3 objects + delete DB draft**; **no queue modeled** |
+| lab5 | `spec.md` + `adr/0008` | **Chosen: Option 1** — modular monolith + internal `Message Queue`; `Microsoft OAuth`, `S3`, `Litematica Parser Service` **outside** boundary; explicit provided/required interface list |
+
+---
+
+### Alignment verification (what checks out)
+
+- **Lab1 ERD → Data Access Layer**: DAL encapsulates repositories for `User`, `Session`, `Schematic`, `Comment`, `Category`, `Tag`, `Version`. ✓ Consistent with spec §Backend.
+- **Lab2 UC-11 / ADR-0006 → external parser outside boundary**: spec places `Litematica Parser Service` strictly outside `SchemaPostol`, reached via `IParseJobQueue`. ✓ Consistent.
+- **Lab2 ADR-0005 → Auth & Session Service → `IMicrosoftOAuthApi` ← Microsoft OAuth**. ✓ Consistent.
+- **Lab3 ADR-0007 → PostgreSQL-only sessions**: no Redis in scope (matches "Out of Scope" — no Redis). ✓ Consistent.
+- **ADR-0008 decision = Option 1** (modular monolith, internal queue, external integrations) is what the diagram must render. ✓ Settled, no question needed.
+
+---
+
+### Traceability gaps / ambiguities identified
+
+1. **Parser binary access — S3 link vs queue payload**  
+   spec.md says `Litematica Parser Service → requires IS3StorageApi (reading file by link OR getting payload from queue)` — the "or" is ambiguous. Lab4's activity diagram shows Backend uploads to S3 *first*, then hands the binary to the parser directly (no queue). So does the parser fetch `.litematica` from S3 via a URL carried in the queue job, or does the queue message carry the binary payload itself?
+
+2. **UC09 rollback/timeout vs the Message Queue**  
+   ADR-0008 admits the queue "requires handling timeouts waiting for a response from the external parser." Lab4 models fork/join rollback (delete S3 objects + delete draft → 422) but with **no queue**. Is the queue request/reply (correlation ID + reply-to + timeout, rollback triggered on timeout/parser failure), or fire-and-forget with a separate result message? Where does compensation rollback trigger from in the component model?
+
+3. **Web UI → direct S3 download for UC-05 / UC-14?**  
+   UC-05 (View Schematic Details, `litematica_url`) and UC-14 (Download World Archive, `world_zip_url`, Guest) need the binary reach the browser. The spec's interface list only has `Schematic & Catalog Service → IS3StorageApi ← S3` (upload direction implied). Does Web UI get pre-signed URLs and fetch directly from S3 (requires a download interface on Web UI), or does REST API proxy the download (Web UI only → `IRestApi`)?
+
+4. **Microsoft OAuth browser redirect — does Web UI need a front-channel interface?**  
+   Lab3 `02-oauth.puml` shows `Web UI (Frontend) → Microsoft OAuth` redirect and `Microsoft OAuth → Web UI` redirect-with-code, i.e. the user-agent redirect passes through Web UI. The spec interface list only models `Auth & Session Service → IMicrosoftOAuthApi ← Microsoft OAuth` (server-side back-channel token exchange). Should the diagram add a separate Web UI front-channel interface to Microsoft OAuth, or treat the redirect as runtime behavior and model only the back-channel?
+
+5. **Naming consistency**  
+   spec.md uses "Auth & Session Service" (interfaces) vs "Auth Service" (component list); "Schematic & Catalog Service" vs "Schematic Service"; "Community Service" vs "Comment Service". Also: is `REST API` a standalone component consuming `IAuthService`/`ISchematicService`/`ICommunityService`, or a thin facade inside those services? The diagram labels should be consistent.
+
+---
+
+### Clarifying questions (with trade-off options)
+
+**Q1 — Parser binary transport:** How does `Litematica Parser Service` obtain the `.litematica` binary?
+- **A)** Queue job carries `schematic_id` + S3 URLs; Parser fetches the file from S3 via `IS3StorageApi` (matches lab4's S3-first upload).
+- **B)** Queue message carries the binary payload directly; Parser does not read S3 for the file (`IS3StorageApi` only for optional world archive / not needed).
+- **C)** Hybrid: job has an S3 URL; Parser reads from S3 and publishes the metadata result back to the queue.
+
+**Q2 — UC09 queue interaction & rollback:** Model the Message Queue as request/reply or fire-and-forget?
+- **A)** Request/reply with correlation ID + reply-to + timeout; Parser publishes result to queue; on timeout/parser failure → compensation rollback (S3 delete + draft delete, `is_published = false`). Explicit timeout/rollback edges on the diagram.
+- **B)** Fire-and-forget job submission; result arrives via a separate result message consumed by Backend → DAL; rollback triggered by result status. Simpler queue semantics, slower failure detection.
+- **C)** Fire-and-forget only, no reply channel modeled; rollback is purely a backend concern (lab4-style), queue treated as unreliable transport.
+
+**Q3 — Web UI ↔ S3 for UC-05/UC-14 downloads:** Does Web UI download directly from S3?
+- **A)** Yes: Web UI `requires IS3DownloadApi ← S3` (browser fetches pre-signed URLs returned by REST API); keeps backend out of the binary data path.
+- **B)** No: REST API proxies all downloads; Web UI only `requires IRestApi ← REST API`; all S3 access behind `Schematic & Catalog Service`.
+- **C)** Split interface: Web UI `requires IS3DownloadApi` (read/download) and `Schematic & Catalog Service` `requires IS3StorageApi` (write/upload) — two distinct interfaces to S3.
+
+**Q4 — Microsoft OAuth front-channel through Web UI:** Model Web UI → Microsoft OAuth?
+- **A)** Yes: add Web UI `requires IMicrosoftOAuthRedirect ← Microsoft OAuth` (browser redirect channel) **plus** Auth & Session Service `requires IMicrosoftOAuthApi ← Microsoft OAuth` (back-channel token exchange).
+- **B)** No: model only `Auth & Session Service → IMicrosoftOAuthApi ← Microsoft OAuth`; document the Web UI redirect as a runtime note (no interface node).
+- **C)** Merge into one `IMicrosoftOAuthApi` on Auth & Session Service, with a note that the user-agent redirect is brokered by Web UI.
+
+**Q5 — Naming:** Adopt spec's interface-section names consistently (`Auth & Session Service`, `Schematic & Catalog Service`, `Community Service`, `REST API` as separate facade component)? Or align with the shorter component-list names (`Auth Service`, `Schematic Service`, `Comment Service`)?
+
+---
+
+### What happens next (Phase 2)
+
+Once you answer Q1–Q5, I will:
+1. Generate `lab5/model/component-diagram.puml` with explicit `SchemaPostol` system boundary containing `Web UI (SPA)`, the backend modular monolith (`REST API`, `Auth & Session Service`, `Schematic & Catalog Service`, `Community Service`, `Data Access Layer`), `PostgreSQL Database`, and `Message Queue`; external `Microsoft OAuth`, `Object Storage (S3)`, `Litematica Parser Service` strictly outside; UML provided/required interfaces (lollipop/socket notation) and dependencies; **no service/UI bypasses DAL to reach PostgreSQL**; no out-of-scope components (no Payments, SMS, Email, Redis, in-game).
+2. Apply `skinparam`/layout directives for zero-overlapping arrows and readable typography.
+3. Render `lab5/model/component-diagram.png` directly from the `.puml`.
+
+**I'm waiting for your answers to Q1–Q5 before writing any PlantUML.**
+</details>
+
+---
+
+**Мої відповіді:** 
+- **Q1**: C
+- **Q2**: A
+- **Q3**: C
+- **Q4**: A
+- **Q5**: Use the shorter component names consistently everywhere: `REST API` (as a standalone facade component inside the Backend modular monolith), `Auth Service`, `Schematic Service`, `Comment Service`, and `Data Access Layer`, with matching interfaces `IAuthService`, `ISchematicService`, `ICommentService`.
+
 ## Аудит результатів
