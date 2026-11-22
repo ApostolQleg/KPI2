@@ -1,12 +1,12 @@
 @startuml
-title SchemaPostol — Component Diagram (Lab 5)
+title SchemaPostol - Component Diagram (Lab 5)
 
 skinparam backgroundColor #FFFFFF
 skinparam shadowing false
 skinparam linetype ortho
-skinparam nodesep 55
-skinparam ranksep 72
-skinparam padding 18
+skinparam nodesep 62
+skinparam ranksep 84
+skinparam padding 20
 skinparam componentStyle rectangle
 skinparam defaultFontName "Segoe UI"
 skinparam defaultFontSize 13
@@ -52,11 +52,22 @@ rectangle "SchemaPostol" <<System Boundary>> {
     component "Schematic Service" as SCHEMATICSVC
     component "Comment Service" as COMSVC
     component "Data Access Layer" as DAL
+
+    ' Internal backend interfaces (provided by backend modules)
+    interface "IAuthService" as IAUTH
+    interface "ISchematicService" as ISCHEM
+    interface "ICommentService" as ICOMMENT
+    interface "IDataAccess" as IDATA
   }
 
   ' --- Internal infrastructure ---
   database "PostgreSQL Database" as PGSQL
   component "Message Queue" as MQ
+
+  ' Internal platform-level interfaces (outside Backend package)
+  interface "IRestApi" as IREST
+  interface "ISqlDriver" as ISQL
+  interface "IParseJobQueue" as IPQ
 }
 
 ' ================= EXTERNAL SYSTEMS (strictly outside system boundary) =================
@@ -64,60 +75,60 @@ cloud "Microsoft OAuth" as MSOAUTH <<External>>
 cloud "Object Storage (S3)" as S3 <<External>>
 cloud "Litematica Parser Service" as PARSER <<External>>
 
-' ================= PROVIDED INTERFACES (lollipop circles attached to providers) =================
-interface "IRestApi" as IREST
-interface "IAuthService" as IAUTH
-interface "ISchematicService" as ISCHEM
-interface "ICommentService" as ICOMMENT
-interface "IDataAccess" as IDATA
-interface "ISqlDriver" as ISQL
+' External system interfaces (provided by external systems)
 interface "IMicrosoftOAuthApi" as IMSAPI
 interface "IMicrosoftOAuthRedirect" as IMSRED
 interface "IS3StorageApi" as IS3W
 interface "IS3DownloadApi" as IS3R
-interface "IParseJobQueue" as IPQ
 
-' Providers realize interfaces (lollipop)
-RESTAPI   -[#007acc]-> IREST   : provides
-AUTHSVC   -[#007acc]-> IAUTH   : provides
-SCHEMATICSVC -[#007acc]-> ISCHEM : provides
-COMSVC    -[#007acc]-> ICOMMENT : provides
-DAL       -[#007acc]-> IDATA   : provides
-PGSQL     -[#007acc]-> ISQL    : provides
-MSOAUTH   -[#d32f2f]-> IMSAPI  : provides
-MSOAUTH   -[#d32f2f]-> IMSRED  : provides
-S3        -[#d32f2f]-> IS3W    : provides
-S3        -[#d32f2f]-> IS3R    : provides
-MQ        -[#ef6c00]-> IPQ     : provides
+' ================= PROVIDED INTERFACES (lollipop: Provider -- Interface) =================
+RESTAPI   -- IREST
+AUTHSVC   -- IAUTH
+SCHEMATICSVC -- ISCHEM
+COMSVC    -- ICOMMENT
+DAL       -- IDATA
+PGSQL     -- ISQL
+MSOAUTH   -- IMSAPI
+MSOAUTH   -- IMSRED
+S3        -- IS3W
+S3        -- IS3R
+MQ        -- IPQ
 
-' ================= REQUIRED INTERFACES + COMPONENT DEPENDENCIES (socket) =================
+' ================= REQUIRED INTERFACES (socket: Consumer -( Interface) =================
 ' Web UI (SPA)
-WEBUI     -[#1b5e20]-> RESTAPI  : requires IRestApi
-WEBUI     -[#1b5e20]-> MSOAUTH  : requires IMicrosoftOAuthRedirect
-WEBUI     -[#1b5e20]-> S3       : requires IS3DownloadApi
+WEBUI -( IREST
+WEBUI -( IMSRED
+WEBUI -( IS3R
 
 ' REST API facade -> backend services
-RESTAPI   -[#1565c0]-> AUTHSVC   : requires IAuthService
-RESTAPI   -[#1565c0]-> SCHEMATICSVC : requires ISchematicService
-RESTAPI   -[#1565c0]-> COMSVC    : requires ICommentService
+RESTAPI -( IAUTH
+RESTAPI -( ISCHEM
+RESTAPI -( ICOMMENT
 
 ' Backend services -> Data Access Layer (no service reaches PostgreSQL directly)
-AUTHSVC   -[#1565c0]-> DAL       : requires IDataAccess
-SCHEMATICSVC -[#1565c0]-> DAL    : requires IDataAccess
-COMSVC    -[#1565c0]-> DAL       : requires IDataAccess
+AUTHSVC -( IDATA
+SCHEMATICSVC -( IDATA
+COMSVC -( IDATA
 
 ' Data Access Layer -> PostgreSQL (sole DB access)
-DAL       -[#1565c0]-> PGSQL     : requires ISqlDriver
+DAL -( ISQL
 
 ' Auth Service -> Microsoft OAuth (back-channel token exchange)
-AUTHSVC   -[#d32f2f]-> MSOAUTH   : requires IMicrosoftOAuthApi
+AUTHSVC -( IMSAPI
 
-' Schematic Service -> S3 (upload) and Message Queue (parse job)
-SCHEMATICSVC -[#1565c0]-> S3     : requires IS3StorageApi
-SCHEMATICSVC -[#1565c0]-> MQ     : requires IParseJobQueue
+' Schematic Service -> S3 (upload / rollback deletion) and Message Queue (parse job)
+SCHEMATICSVC -( IS3W
+SCHEMATICSVC -( IPQ
 
-' Litematica Parser Service -> Message Queue (result) and S3 (read file by link)
-PARSER    -[#d32f2f]-> MQ        : requires IParseJobQueue
-PARSER    -[#d32f2f]-> S3        : requires IS3StorageApi
+' Litematica Parser Service -> Message Queue (result) and S3 read-only (file by link)
+PARSER -( IPQ
+PARSER -( IS3R
+
+' ================= NOTE: request/reply timeout & compensation rollback =================
+note right of MQ
+  Request/reply: correlation_id + reply channel;
+  on timeout or parser failure -> compensation rollback:
+  delete S3 objects (IS3StorageApi) + delete DB draft (IDataAccess).
+end note
 
 @enduml
